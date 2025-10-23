@@ -29,6 +29,7 @@ const messages = {
     loadMore: 'Ko\'proq yuklash',
     lightMode: 'Yorqin rejim',
     darkTheme: 'Qorong\'u rejim',
+    'alert.loginRequired': '❌ Koment yozish uchun avval tizimga kirishingiz kerak.',
     'footer.social': 'Ijtimoiy Tarmoqlar',
     'footer.disclaimer': 'Ushbu Saytdagi Barcha Videolar Faqat Ma\'lumot Uchun Taqdim Etiladi.',
     'footer.siteInfo': 'SAYT HAQIDAGI MA\'LUMOT',
@@ -65,6 +66,11 @@ const messages = {
     'detail.comments': 'Izohlar',
     'detail.notFound': 'Anime topilmadi 😢',
     'detail.ep': 'Qism', // для 1-EP, 2-EP
+    
+    // Новые ключи для главной страницы
+    latestReleases: 'So\'nggi relizlar',
+    searchResults: 'Qidiruv natijalari',
+    noAnimesFound: 'Anime topilmadi 😢',
   },
   RU: {
     // ... (Предыдущие ключи)
@@ -94,6 +100,7 @@ const messages = {
     loadMore: 'Загрузить ещё',
     lightMode: 'Светлый режим',
     darkTheme: 'Тёмный режим',
+    'alert.loginRequired': '❌ Вам нужно войти, чтобы оставить комментарий.',
     'footer.social': 'Социальные Сети',
     'footer.disclaimer': 'Все видео на этом сайте предоставлены исключительно в ознакомительных целях.',
     'footer.siteInfo': 'ИНФОРМАЦИЯ О САЙТЕ',
@@ -130,6 +137,11 @@ const messages = {
     'detail.comments': 'Комментарии',
     'detail.notFound': 'Аниме не найдено 😢',
     'detail.ep': 'ЭП', // для 1-ЭП, 2-ЭП
+
+    // Новые ключи для главной страницы
+    latestReleases: 'Последние релизы',
+    searchResults: 'Результаты поиска',
+    noAnimesFound: 'Аниме не найдено 😢',
   }
 }
 

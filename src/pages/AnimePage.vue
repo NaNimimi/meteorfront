@@ -165,21 +165,36 @@
               </div>
               <button
                 @click="addComment"
-                class="bg-green-500 text-white px-4 py-1.5 rounded-full hover:bg-green-600 transition text-sm"
+                :disabled="isSending"
+                class="bg-green-500 text-white px-4 py-1.5 rounded-full hover:bg-green-600 transition text-sm disabled:bg-green-400 disabled:cursor-not-allowed"
               >
-                {{ $t('detail.send') }}
+                {{ isSending ? $t('detail.sending') : $t('detail.send') }}
               </button>
             </div>
 
             <transition-group name="fade" tag="div">
-              <div
-                v-for="(c, i) in comments"
-                :key="i"
-                class="border-t pt-2 mt-2 bg-white dark:bg-gray-700 p-2 rounded shadow-sm text-sm"
-              >
-                <p class="text-gray-800 dark:text-gray-100">{{ c }}</p>
+             <div
+              v-for="(c, i) in comments"
+              :key="c.id || i"
+              class="border-t pt-3 mt-3 bg-white dark:bg-gray-700 p-3 rounded-xl shadow-sm text-sm"
+            >
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-semibold text-green-600 dark:text-green-300">
+                  {{ c.author_name || 'Anonymous' }}
+                </span>
+                <span class="text-xs text-gray-500 dark:text-gray-400">
+                  {{ new Date(c.created_at).toLocaleString() }}
+                </span>
               </div>
+              <p class="text-gray-800 dark:text-gray-100 leading-snug">
+                {{ c.comment }}
+              </p>
+            </div>
             </transition-group>
+            
+            <p v-if="!comments.length && !isLoading" class="text-center text-gray-500 dark:text-gray-400 mt-4">
+                {{ $t('detail.noComments') }}
+            </p>
           </div>
         </div>
       </div>
@@ -198,7 +213,7 @@ import {
   HeartIcon,
 } from "lucide-vue-next";
 
-const API_BASE = "http://api.meteordub.uz/api";
+const API_BASE = "https://api.meteordub.uz/api";
 const { t } = useI18n();
 const route = useRoute();
 const router = useRouter();
@@ -207,9 +222,6 @@ const anime = ref(null);
 const isLoading = ref(true);
 const isError = ref(false);
 const selectedEpisode = ref(0);
-const comment = ref("");
-const comments = ref([]);
-// activeTag хранит имя списка, в котором находится аниме, или null
 const activeTag = ref(null); 
 
 const tags = ref([
@@ -220,20 +232,13 @@ const tags = ref([
 ]);
 
 // ---------------------------------------------
-// ЛОКАЛЬНОЕ ХРАНЕНИЕ СПИСКОВ (localStorage)
+// ЛОКАЛЬНОЕ ХРАНЕНИЕ СПИСКОВ
 // ---------------------------------------------
 
-/**
- * Получает список ID аниме из localStorage для указанного тега.
- * Ключи: 'watching_anime_ids', 'favorite_anime_ids' и т.д.
- * @param {string} tag - Ключ списка.
- * @returns {Array<number>} Массив ID аниме.
- */
 function getLocalAnimeList(tag) {
   const key = `${tag}_anime_ids`;
   try {
     const list = localStorage.getItem(key);
-    // Используем parseInt для конвертации ID в числа, так как они в JSON - числа
     return list ? JSON.parse(list).map(id => parseInt(id)) : [];
   } catch (e) {
     console.error(`Error parsing localStorage key: ${key}`, e);
@@ -241,27 +246,17 @@ function getLocalAnimeList(tag) {
   }
 }
 
-/**
- * Сохраняет массив ID аниме в localStorage.
- * @param {string} tag - Ключ списка.
- * @param {Array<number>} list - Массив ID аниме.
- */
 function saveLocalAnimeList(tag, list) {
   const key = `${tag}_anime_ids`;
   localStorage.setItem(key, JSON.stringify(list));
 }
 
-/**
- * Инициализирует activeTag, проверяя, в каком списке находится текущее аниме.
- */
 function initializeActiveTag() {
   if (!anime.value) return;
 
-  // Убеждаемся, что ID - это число
   const animeId = parseInt(anime.value.id); 
   const allTags = tags.value.map(t => t.name);
   
-  // Проверяем каждый список
   for (const tag of allTags) {
     const list = getLocalAnimeList(tag);
     if (list.includes(animeId)) {
@@ -272,10 +267,6 @@ function initializeActiveTag() {
   activeTag.value = null;
 }
 
-/**
- * Обрабатывает нажатие на кнопку тега, обновляя списки в localStorage.
- * @param {string} tag - Выбранный тег.
- */
 const selectTag = (tag) => {
   if (!anime.value) return;
 
@@ -283,23 +274,18 @@ const selectTag = (tag) => {
   const currentTag = activeTag.value;
 
   if (currentTag === tag) {
-    // 1. Снимаем выделение: Удаляем аниме из текущего списка
     const currentList = getLocalAnimeList(currentTag);
     const newList = currentList.filter(id => id !== animeId);
     saveLocalAnimeList(currentTag, newList);
     activeTag.value = null;
 
   } else {
-    // 2. Выделяем новый тег: 
-    
-    // Сначала удаляем аниме из старого списка, если оно там было
     if (currentTag) {
       const oldList = getLocalAnimeList(currentTag);
       const newOldList = oldList.filter(id => id !== animeId);
       saveLocalAnimeList(currentTag, newOldList);
     }
 
-    // Добавляем аниме в новый список
     const newList = getLocalAnimeList(tag);
     if (!newList.includes(animeId)) {
       newList.push(animeId);
@@ -310,7 +296,7 @@ const selectTag = (tag) => {
 };
 
 // ---------------------------------------------
-// ЛОГИКА ВИДЕОПЛЕЕРА (без изменений)
+// ЛОГИКА ВИДЕОПЛЕЕРА
 // ---------------------------------------------
 const currentVideoUrl = computed(() => {
   if (!anime.value || anime.value.episodes.length <= selectedEpisode.value || selectedEpisode.value < 0) {
@@ -328,14 +314,124 @@ const currentVideoUrl = computed(() => {
   return episode.video_url || null; 
 });
 
+// ----------------------
+// Episode Comments Logic
+// ----------------------
+const comments = ref([]);
+const comment = ref("");
+const isSending = ref(false);
+
+/**
+ * Fetch comments for specific episode.
+ * * ✅ ИСПРАВЛЕНИЕ: Теперь корректно извлекает данные из 'results' в ответе API.
+ */
+async function fetchComments(animeId, episodeId) {
+  comments.value = []; 
+
+  try {
+    const res = await fetch(`${API_BASE}/animes/${animeId}/episodes/${episodeId}/comments/`);
+    if (!res.ok) throw new Error(`Failed to fetch comments: ${res.status}`);
+    const data = await res.json();
+
+    // 🔴 КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: Извлекаем массив из ключа 'results'
+    let loadedComments = Array.isArray(data.results) ? data.results : [];
+    
+    // Если по какой-то причине API возвращает старую структуру { data: [...] }
+    if (!loadedComments.length && Array.isArray(data.data)) {
+        loadedComments = data.data;
+    }
+
+    // Сортировка по дате создания, чтобы самые новые были сверху
+    comments.value = loadedComments.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+    
+    console.log("✅ Comments loaded (from results/data):", comments.value);
+  } catch (err) {
+    console.error("❌ Error loading comments:", err);
+    comments.value = [];
+  }
+}
+
+async function addComment() {
+  const text = comment.value.trim();
+
+  if (!text) {
+    alert("⚠️ Comment field is required.");
+    return;
+  }
+
+  const animeId = anime.value?.id;
+  const currentEpisode = anime.value?.episodes[selectedEpisode.value];
+  if (!animeId || !currentEpisode?.id) {
+    console.error("❌ Missing animeId or episodeId for comment");
+    return;
+  }
+
+  const accessToken = localStorage.getItem("access_token");
+  if (!accessToken) {
+    alert(t('alert.loginRequired'));
+    return;
+  }
+
+  isSending.value = true;
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/animes/${animeId}/episodes/${currentEpisode.id}/comments/`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`, 
+        },
+        body: JSON.stringify({ comment: text }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      const backendError =
+        data?.errors?.comment?.[0] ||
+        data?.message ||
+        "Failed to post comment.";
+      throw new Error(backendError);
+    }
+
+    // Добавляем новый комментарий (берем из data.data или из data)
+    const newComment = data.data || data; 
+    comments.value.unshift(newComment);
+    comment.value = "";
+
+    console.log("💬 New comment added:", data);
+  } catch (err) {
+    console.error("❌ Error posting comment:", err);
+    alert(`❌ ${err.message}`);
+  } finally {
+    isSending.value = false;
+  }
+}
+
+// Загрузка комментариев при смене эпизода
+watch(selectedEpisode, async (newIndex, oldIndex) => {
+    if (newIndex === oldIndex || newIndex < 0) return;
+
+    const currentEpisode = anime.value?.episodes[newIndex];
+    if (anime.value?.id && currentEpisode?.id) {
+        await fetchComments(anime.value.id, currentEpisode.id);
+    }
+});
+
 
 // ---------------------------------------------
-// API FETCH (Обновлен для вызова initializeActiveTag)
+// API FETCH (Обновлен для вызова fetchComments)
 // ---------------------------------------------
 async function fetchAnimeById(animeId) {
   isLoading.value = true;
   isError.value = false;
   anime.value = null;
+  comments.value = []; 
 
   if (!animeId || isNaN(parseInt(animeId))) {
     console.error("Invalid anime ID provided.");
@@ -356,13 +452,13 @@ async function fetchAnimeById(animeId) {
     let episodes = [];
     if (episodeRes.ok) {
       const episodeList = await episodeRes.json();
-      episodes = episodeList.data 
+      episodes = Array.isArray(episodeList.data) 
         ? episodeList.data.sort((a, b) => a.episode_number - b.episode_number) 
         : [];
     }
 
     anime.value = {
-      id: detailData.id, // ID аниме очень важен!
+      id: detailData.id, 
       title: detailData.title_ru || detailData.title || "Title N/A",
       rating: detailData.rating ? detailData.rating.toFixed(1) : "N/A",
       status: detailData.status?.toUpperCase() === "ONGOING" ? "Ongoing" : "Completed",
@@ -379,7 +475,13 @@ async function fetchAnimeById(animeId) {
 
     selectedEpisode.value = anime.value.episodes.length > 0 ? 0 : -1;
     
-    // ВЫЗОВ ИНИЦИАЛИЗАЦИИ ТЕГА ПОСЛЕ ЗАГРУЗКИ ДЕТАЛЕЙ
+    // ✅ ИСПРАВЛЕНИЕ: ЯВНЫЙ ВЫЗОВ ЗАГРУЗКИ КОММЕНТАРИЕВ ДЛЯ ПЕРВОГО ЭПИЗОДА
+    const initialEpisode = anime.value.episodes[selectedEpisode.value];
+    if (anime.value.id && initialEpisode?.id && selectedEpisode.value !== -1) {
+        await fetchComments(anime.value.id, initialEpisode.id);
+    }
+    // -----------------------------------------------------------------------
+
     initializeActiveTag(); 
 
   } catch (err) {
@@ -391,17 +493,12 @@ async function fetchAnimeById(animeId) {
   }
 }
 
+
 // ---------------------------------------------
 // UI LOGIC & LIFECYCLE
 // ---------------------------------------------
 
 const goBack = () => router.go(-1);
-const addComment = () => {
-  if (comment.value.trim()) {
-    comments.value.unshift(comment.value);
-    comment.value = "";
-  }
-};
 
 onMounted(() => {
   const savedMode = JSON.parse(localStorage.getItem("darkMode"));
@@ -417,6 +514,8 @@ watch(
     if (newId) fetchAnimeById(newId);
   }
 );
+
+
 </script>
 
 <style scoped>

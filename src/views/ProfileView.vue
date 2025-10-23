@@ -183,7 +183,7 @@ import {
   HeartIcon,
 } from "lucide-vue-next";
 
-const API_BASE = "http://api.meteordub.uz/api";
+const API_BASE = "https://api.meteordub.uz/api";
 const getAuthToken = () => localStorage.getItem("access_token");
 const router = useRouter();
 

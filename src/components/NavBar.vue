@@ -36,18 +36,43 @@
           </svg>
         </button>
 
-        <div class="hidden sm:flex items-center relative min-w-[200px]">
-          <input v-model="search" @input="emitSearch" type="text" :placeholder="$t('searchPlaceholder')"
-                 class="w-full pl-9 pr-4 py-2 rounded-full border focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm sm:text-base transition-colors duration-500"
-                 :class="darkMode ? 'bg-slate-800 border-slate-700 placeholder-slate-400 text-white' : 'bg-white border-slate-300 placeholder-slate-500 text-slate-900'" />
-          <svg xmlns="http://www.w3.org/2000/svg"
-               class="h-4 w-4 sm:h-5 sm:w-5 absolute left-3 top-1/2 -translate-y-1/2"
-               :class="darkMode ? 'text-slate-300' : 'text-slate-500'" fill="none"
-               viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M21 21l-4.35-4.35M11 6a5 5 0 100 10 5 5 0 000-10z" />
-          </svg>
-        </div>
+        <div
+    class="flex items-center relative min-w-[200px]"
+    :class="[
+      isKeyboardOpen
+        ? 'fixed top-0 left-0 z-50 w-full px-4 sm:relative sm:w-auto sm:px-0'
+        : 'hidden sm:flex'
+    ]"
+  >
+    <input
+      v-model="search"
+      @input="emitSearch"
+      @focus="isKeyboardOpen = true"
+      @blur="onBlur"
+      type="text"
+      :placeholder="$t('searchPlaceholder')"
+      class="w-full pl-9 pr-4 py-2 rounded-full border focus:outline-none focus:ring-2 focus:ring-amber-400 text-sm sm:text-base transition-colors duration-500"
+      :class="darkMode
+        ? 'bg-slate-800 border-slate-700 placeholder-slate-400 text-white'
+        : 'bg-white border-slate-300 placeholder-slate-500 text-slate-900'"
+    />
+
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      class="h-4 w-4 sm:h-5 sm:w-5 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+      :class="darkMode ? 'text-slate-300' : 'text-slate-500'"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M21 21l-4.35-4.35M11 6a5 5 0 100 10 5 5 0 000-10z"
+      />
+    </svg>
+  </div>
 
         <button @click.stop="toggleFilter"
                 class="flex items-center justify-center gap-1 w-10 sm:w-auto h-10 rounded-full text-sm font-medium transition px-3 sm:px-4"
@@ -241,12 +266,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, computed } from "vue";
+import { ref, onMounted, onBeforeUnmount, watch, computed, watchEffect } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useI18n } from 'vue-i18n';
 import { logout as authLogout, currentUser, fetchMe } from '../utils/auth'; 
 
-const API_BASE = 'http://api.meteordub.uz/api';
+const API_BASE = 'https://api.meteordub.uz/api';
 
 const { t, locale } = useI18n({ useScope: 'global' });
 const router = useRouter();
@@ -321,6 +346,17 @@ function getFilterQueryParams() {
   return params;
 }
 
+
+// --- Search keyboard fix ---
+const isKeyboardOpen = ref(false)
+
+function onBlur() {
+  // Delay reset to avoid flicker when keyboard closes
+  setTimeout(() => {
+    isKeyboardOpen.value = false
+  }, 300)
+}
+
 function applyMainFilter() {
   const newQuery = getFilterQueryParams();
   newQuery.page = 1;
@@ -390,10 +426,19 @@ async function loadUserData() {
 // --- Lifecycle ---
 onMounted(() => {
   if (darkMode.value) document.documentElement.classList.add("dark");
-  window.addEventListener("click", closeAll);
+
+  // Only close dropdowns if click is OUTSIDE header
+  document.addEventListener("click", (e) => {
+    const header = document.querySelector("header");
+    if (header && !header.contains(e.target)) {
+      closeAll();
+    }
+  });
+
   loadUserData(); 
   fetchGenres();
 });
+
 
 onBeforeUnmount(() => {
   window.removeEventListener("click", closeAll);
@@ -412,11 +457,30 @@ watch(() => route.query, (q) => {
     sort: q.ordering || "",
   };
 });
+watchEffect(() => {
+  if (isKeyboardOpen.value) {
+    // Lock scrolling but don't force height (prevents white screen)
+    document.body.style.overflow = "hidden"
+    document.body.style.position = "fixed"
+    document.body.style.width = "100%"
+  } else {
+    document.body.style.overflow = ""
+    document.body.style.position = ""
+    document.body.style.width = ""
+  }
+})
 </script>
 
-<style scoped>
+<style  scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .slide-enter-active, .slide-leave-active { transition: all 0.2s ease; }
 .slide-enter-from, .slide-leave-to { opacity: 0; transform: translateY(-8px); }
+
+html,
+body {
+  height: 100%;
+  overflow-x: hidden;
+  overscroll-behavior: contain; /* stops mobile bounce */
+}
 </style>

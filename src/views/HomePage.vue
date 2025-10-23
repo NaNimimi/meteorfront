@@ -179,7 +179,7 @@ const { t } = useI18n();
 const router = useRouter();
 const route = useRoute();
 
-const API_BASE = 'http://api.meteordub.uz/api';
+const API_BASE = 'https://api.meteordub.uz/api';
 
 // --- STATE ---
 const currentIndex = ref(0);

@@ -1,4 +1,4 @@
-const API_BASE = 'http://api.meteordub.uz/api'
+const API_BASE = 'https://api.meteordub.uz/api'
 const SESSION_KEY = 'my_app_session' 
 const ACCESS_TOKEN_KEY = 'access_token'
 const REFRESH_TOKEN_KEY = 'refresh_token'
