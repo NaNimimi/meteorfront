@@ -2,10 +2,12 @@
   <div
     class="min-h-screen w-full transition-colors duration-500 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
   >
+    <!-- NAVBAR -->
+
     <div class="max-w-6xl mx-auto px-4">
-      <!-- HERO SLIDER -->
+      <!-- HERO SLIDER (hidden when searching/filtering) -->
       <section
-        v-if="slides.length"
+        v-if="showSlider && slides.length"
         class="relative bg-cover bg-center rounded-b-3xl overflow-hidden mt-6 transition-all duration-700"
         :style="{
           backgroundImage: `url(${slides[currentIndex].hero})`,
@@ -99,34 +101,6 @@
         </div>
       </section>
 
-      <section
-        v-else-if="isLoadingSlider"
-        class="flex justify-center items-center h-64 mt-6"
-      >
-        <div
-          class="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-400"
-        ></div>
-        <p class="ml-4 text-lg">{{ $t('loading') }}...</p>
-      </section>
-
-      <section
-        v-else-if="isErrorSlider"
-        class="flex justify-center items-center h-64 mt-6 p-4 bg-red-100 dark:bg-red-900/50 rounded-lg"
-      >
-        <p
-          class="text-red-600 dark:text-red-400 font-semibold"
-        >{{ $t('errorLoadingSlides') }}</p>
-      </section>
-
-      <section
-        v-else
-        class="flex justify-center items-center h-64 mt-6 p-4 bg-gray-200 dark:bg-gray-800 rounded-lg"
-      >
-        <p
-          class="text-gray-600 dark:text-gray-400 font-semibold"
-        >{{ $t('noContentAvailable') }}</p>
-      </section>
-
       <!-- MAIN ANIME LIST -->
       <section
         class="mt-10 pb-10 bg-gray-100 dark:bg-gray-800 rounded-3xl transition-colors duration-500"
@@ -140,15 +114,10 @@
         </h2>
 
         <div v-if="isLoadingAnimes" class="flex justify-center p-10">
-          <div
-            class="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-400"
-          ></div>
+          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-400"></div>
         </div>
 
-        <div
-          v-else-if="animeList.length === 0"
-          class="text-center p-10 text-xl font-medium"
-        >
+        <div v-else-if="animeList.length === 0" class="text-center p-10 text-xl font-medium">
           {{ $t('noAnimesFound') }}
         </div>
 
@@ -175,84 +144,90 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useI18n } from 'vue-i18n';
 import Card from '../components/Card.vue';
 
 const { t } = useI18n();
 const router = useRouter();
+const route = useRoute();
 
 const API_BASE = 'http://api.meteordub.uz/api';
 
-// --- SLIDER ---
+// --- STATE ---
 const currentIndex = ref(0);
 const slides = ref([]);
-const isLoadingSlider = ref(true);
-const isErrorSlider = ref(false);
-
-// --- ANIME LIST ---
 const animeList = ref([]);
-const isLoadingAnimes = ref(false);
 const animeNextPage = ref(null);
 const animeCurrentPage = ref(1);
+const isLoadingAnimes = ref(false);
+const isLoadingSlider = ref(true);
+const isDarkMode = ref(JSON.parse(localStorage.getItem('darkMode')) || false);
 
-// --- FILTERS ---
-const currentSearchQuery = ref('');
+// --- FILTERS / SEARCH ---
+const currentSearchQuery = ref(route.query.search || '');
 const currentGenres = ref([]);
-const currentMainFilter = ref({});
-const isFiltered = computed(() =>
-  Object.values(currentMainFilter.value).some((val) => val)
-);
+const currentMainFilter = ref({
+  search: route.query.search || '',
+  type: route.query.type || '',
+  status: route.query.status || '',
+  season: route.query.season || '',
+  yearFrom: route.query.release_year_gte || '',
+  yearTo: route.query.release_year_lte || '',
+  sort: route.query.ordering || '',
+});
+const isFiltered = computed(() => Object.values(currentMainFilter.value).some(v => v));
+const showSlider = computed(() => !route.query.search && !isFiltered.value && !currentGenres.value.length);
 
 // --- UI ---
 const windowWidth = ref(window.innerWidth);
 const interval = ref(null);
-const isDarkMode = ref(JSON.parse(localStorage.getItem('darkMode')) || false);
 
 // ------------------------------------------------
-// FETCH FUNCTIONS
+// BUILD QUERY STRING
 // ------------------------------------------------
-
 function buildQueryString(page = 1) {
   const params = new URLSearchParams();
-  const finalSearch = currentSearchQuery.value || currentMainFilter.value.search;
-  if (finalSearch) params.append('search', finalSearch);
-  if (currentGenres.value.length)
-    params.append('genres', currentGenres.value.join(','));
-  const filter = currentMainFilter.value;
-  if (filter.type) params.append('type', filter.type);
-  if (filter.status) params.append('status', filter.status);
-  if (filter.sort) params.append('ordering', filter.sort);
-  if (filter.yearFrom) params.append('year_after', filter.yearFrom);
-  if (filter.yearTo) params.append('year_before', filter.yearTo);
-  if (filter.ratingFrom) params.append('rating_min', filter.ratingFrom);
+
+  if (route.query.search) params.append('search', route.query.search);
+  if (route.query.genres) params.append('genres', route.query.genres);
+  if (route.query.type) params.append('type', route.query.type);
+  if (route.query.status) params.append('status', route.query.status);
+  if (route.query.season) params.append('season', route.query.season);
+  if (route.query.release_year) params.append('release_year', route.query.release_year);
+  if (route.query.release_year_gte) params.append('release_year_gte', route.query.release_year_gte);
+  if (route.query.release_year_lte) params.append('release_year_lte', route.query.release_year_lte);
+  if (route.query.ordering) params.append('ordering', route.query.ordering);
+
   params.append('page', page);
   return params.toString();
 }
 
+
+// ------------------------------------------------
+// FETCH FUNCTIONS
+// ------------------------------------------------
 async function fetchAnimes(append = false) {
   isLoadingAnimes.value = true;
   const pageToLoad = append ? animeCurrentPage.value + 1 : 1;
-  const queryString = buildQueryString(pageToLoad);
-  const url = `${API_BASE}/animes/?${queryString}`;
+  const url = `${API_BASE}/animes/?${buildQueryString(pageToLoad)}`;
 
   try {
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`Ошибка HTTP: ${res.status}`);
     const data = await res.json();
-    const newAnimes = data.data || [];
+    const animes = data.data || [];
 
     if (append) {
-      animeList.value = [...animeList.value, ...newAnimes];
+      animeList.value = [...animeList.value, ...animes];
       animeCurrentPage.value = pageToLoad;
     } else {
-      animeList.value = newAnimes;
+      animeList.value = animes;
       animeCurrentPage.value = 1;
     }
+
     animeNextPage.value = data.links?.next || null;
-  } catch (error) {
-    console.error('Ошибка загрузки аниме:', error);
-    if (!append) animeList.value = [];
+  } catch (err) {
+    console.error('❌ Error loading animes:', err);
   } finally {
     isLoadingAnimes.value = false;
   }
@@ -260,47 +235,55 @@ async function fetchAnimes(append = false) {
 
 async function fetchAnimesForSlider() {
   isLoadingSlider.value = true;
-  isErrorSlider.value = false;
-
   try {
-    const url = `${API_BASE}/animes/?limit=20&ordering=-rating`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+    const res = await fetch(`${API_BASE}/animes/?limit=20&ordering=-rating`);
     const data = await res.json();
-    const allAnimes = data.data || [];
-
-    if (allAnimes.length === 0) return;
-
-    const shuffled = allAnimes.sort(() => 0.5 - Math.random());
-    const selectedSlides = shuffled.slice(0, 3);
-
-    slides.value = selectedSlides.map((anime) => ({
-      id: anime.id,
-      hero: anime.banner_url || '/placeholder-hero.jpg',
-      mini: anime.poster_url || '/placeholder-mini.jpg',
-      title: anime.title_ru || anime.title_uz || 'No title',
-      desc:
-        anime.description?.substring(0, 200) + '...' || t('noDescription'),
-      label: anime.status === 'ongoing' ? t('ongoing') : t('released'),
-      subtitle: `${anime.year || '—'}, ${anime.type || '—'}`,
-      slug: anime.slug,
+    const all = data.data || [];
+    const randomSlides = all.sort(() => 0.5 - Math.random()).slice(0, 3);
+    slides.value = randomSlides.map(a => ({
+      id: a.id,
+      hero: a.banner_url || '/placeholder-hero.jpg',
+      mini: a.poster_url || '/placeholder-mini.jpg',
+      title: a.russian_title || a.uzbek_title || 'No title',
+      desc: a.description?.slice(0, 200) + '...',
+      label: a.status === 'ongoing' ? t('ongoing') : t('released'),
+      subtitle: `${a.year || '—'}, ${a.type || '—'}`,
     }));
-
-    currentIndex.value = 0;
-    if (slides.value.length > 1) startSlider();
-  } catch (error) {
-    console.error('Ошибка загрузки слайдов:', error);
-    isErrorSlider.value = true;
-    slides.value = [];
+    startSlider();
+  } catch (err) {
+    console.error('❌ Slider fetch failed:', err);
   } finally {
     isLoadingSlider.value = false;
   }
 }
 
 // ------------------------------------------------
+// WATCHERS — React to URL changes from NavBar
+// ------------------------------------------------
+watch(
+  () => route.query,
+  (newQuery) => {
+    currentSearchQuery.value = newQuery.search || '';
+    currentGenres.value = newQuery.genres ? newQuery.genres.split(',') : [];
+
+    currentMainFilter.value = {
+      search: newQuery.search || '',
+      type: newQuery.type || '',
+      status: newQuery.status || '',
+      season: newQuery.season || '',
+      yearFrom: newQuery.release_year_gte || '',
+      yearTo: newQuery.release_year_lte || '',
+      sort: newQuery.ordering || '',
+    };
+
+    fetchAnimes();
+  },
+  { immediate: true }
+);
+
+// ------------------------------------------------
 // SLIDER LOGIC
 // ------------------------------------------------
-
 function startSlider() {
   if (interval.value) clearInterval(interval.value);
   if (slides.value.length > 1) {
@@ -309,96 +292,26 @@ function startSlider() {
     }, 5000);
   }
 }
-
 function setSlide(i) {
   currentIndex.value = i;
   clearInterval(interval.value);
   startSlider();
 }
-
-// ------------------------------------------------
-// NAVIGATION
-// ------------------------------------------------
-
 function navigateToAnime(id) {
-  if (!id) return console.warn('No id found for current slide.');
   router.push(`/anime/${id}`);
-}
-
-function navigateToAnimeDetails(id) {
-  if (!id) return console.warn('No id found for details.');
-  router.push(`/anime/${id}`); // Change later if needed (e.g. `/anime/${slug}/details`)
-}
-
-// ------------------------------------------------
-// UI EVENTS
-// ------------------------------------------------
-
-function handleResize() {
-  windowWidth.value = window.innerWidth;
-}
-
-function applyTheme(isDark) {
-  document.documentElement.classList.toggle('dark', isDark);
-  localStorage.setItem('darkMode', JSON.stringify(isDark));
 }
 
 // ------------------------------------------------
 // LIFECYCLE
 // ------------------------------------------------
-
 onMounted(() => {
-  applyTheme(isDarkMode.value);
-  window.addEventListener('resize', handleResize);
+  document.documentElement.classList.toggle('dark', isDarkMode.value);
+  window.addEventListener('resize', () => (windowWidth.value = window.innerWidth));
   fetchAnimesForSlider();
-  fetchAnimes();
 });
-
 onUnmounted(() => {
   clearInterval(interval.value);
-  window.removeEventListener('resize', handleResize);
-});
-
-watch(isDarkMode, (newVal) => {
-  applyTheme(newVal);
+  window.removeEventListener('resize', () => (windowWidth.value = window.innerWidth));
 });
 </script>
 
-<style>
-.fade-up-enter-active,
-.fade-up-leave-active {
-  transition: all 0.8s ease;
-}
-.fade-up-enter-from {
-  opacity: 0;
-  transform: translateY(30px);
-}
-.fade-up-leave-to {
-  opacity: 0;
-  transform: translateY(-30px);
-}
-
-.slide-mini-enter-active,
-.slide-mini-leave-active {
-  transition: all 0.6s ease;
-}
-.slide-mini-enter-from {
-  opacity: 0;
-  transform: translateX(50px);
-}
-.slide-mini-leave-to {
-  opacity: 0;
-  transform: translateX(-50px);
-}
-
-html,
-body {
-  min-height: 100vh;
-  background-color: #f9fafb;
-  transition: background-color 0.5s ease;
-}
-html.dark,
-body.dark {
-  background-color: #0f172a;
-}
-</style>

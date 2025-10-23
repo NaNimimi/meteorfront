@@ -24,7 +24,7 @@
       <div
         class="text-base font-semibold text-gray-900 dark:text-gray-100 truncate hover:text-amber-500 dark:hover:text-amber-400 transition"
       >
-        {{ animeTitle }}
+        {{ anime.title }}
       </div>
 
       <div

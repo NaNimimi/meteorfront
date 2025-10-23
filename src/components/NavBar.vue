@@ -241,8 +241,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, computed, defineEmits } from "vue";
-import { useRouter } from "vue-router";
+import { ref, onMounted, onBeforeUnmount, watch, computed } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import { useI18n } from 'vue-i18n';
 import { logout as authLogout, currentUser, fetchMe } from '../utils/auth'; 
 
@@ -250,11 +250,10 @@ const API_BASE = 'http://api.meteordub.uz/api';
 
 const { t, locale } = useI18n({ useScope: 'global' });
 const router = useRouter();
-
-const emit = defineEmits(['update:search', 'performSearch', 'applyFilterQuery', 'applyGenresQuery']); 
+const route = useRoute();
 
 const user = ref(currentUser()); 
-const search = ref("");
+const search = ref(route.query.search || "");
 const showGenres = ref(false);
 const showFilter = ref(false);
 const showMobileSearch = ref(false);
@@ -265,13 +264,13 @@ const logoSrc = ref("/Logo.png");
 const genresList = ref([]);
 
 const filter = ref({
-  search: "", 
-  type: "",
-  status: "",
-  yearFrom: "",
-  yearTo: "",
-  ratingFrom: "",
-  sort: "",
+  search: route.query.search || "", 
+  type: route.query.type || "",
+  status: route.query.status || "",
+  yearFrom: route.query.release_year_gte || "",
+  yearTo: route.query.release_year_lte || "",
+  ratingFrom: route.query.rating_gte || "",
+  sort: route.query.ordering || "",
 });
 
 async function fetchGenres() {
@@ -280,46 +279,90 @@ async function fetchGenres() {
     if (!res.ok) throw new Error(`HTTP error: ${res.status}`);
     const data = await res.json();
     genresList.value = data.data || [];
-    console.log("Genres loaded:", genresList.value);
   } catch (error) {
     console.error("Failed to fetch genres:", error);
     genresList.value = [];
   }
 }
 
+// ✅ Debounced Search — updates router query instead of emit()
 let searchTimeout = null;
-
-function debouncedSearch() {
+function emitSearch() {
   if (searchTimeout) clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => {
-    const query = search.value ? `search=${encodeURIComponent(search.value)}` : '';
-    emit('performSearch', query); 
-    console.log("Quick Search query string sent:", query);
+    const query = { ...route.query };
+    if (search.value.trim()) query.search = search.value.trim();
+    else delete query.search;
+    query.page = 1;
+    router.push({ name: "Home", query });
   }, 500);
 }
 
-function emitSearch() { 
-  emit('update:search', search.value); 
-  filter.value.search = search.value; // Sync filter.search with quick search
-  debouncedSearch();
+// ✅ Apply filters through query params
+function getFilterQueryParams() {
+  const params = { ...route.query };
+  const f = filter.value;
+
+  if (f.search) params.search = f.search;
+  else delete params.search;
+  if (f.type) params.type = f.type;
+  else delete params.type;
+  if (f.status) params.status = f.status;
+  else delete params.status;
+  if (f.yearFrom) params.release_year_gte = f.yearFrom;
+  else delete params.release_year_gte;
+  if (f.yearTo) params.release_year_lte = f.yearTo;
+  else delete params.release_year_lte;
+  if (f.ratingFrom) params.rating_gte = f.ratingFrom;
+  else delete params.rating_gte;
+  if (f.sort) params.ordering = f.sort;
+  else delete params.ordering;
+
+  return params;
 }
 
+function applyMainFilter() {
+  const newQuery = getFilterQueryParams();
+  newQuery.page = 1;
+  router.push({ name: "Home", query: newQuery });
+  showFilter.value = false;
+}
+
+// ✅ Apply selected genres as search query (API uses “search”)
+function applyFilterGenres() {
+  const query = { ...route.query };
+
+  if (selectedGenres.value.length > 0) {
+    // ✅ Use 'genres' instead of 'search'
+    query.genres = selectedGenres.value.join(",");
+  } else {
+    delete query.genres;
+  }
+
+  query.page = 1;
+  router.push({ name: "Home", query });
+  showGenres.value = false;
+}
+
+
+// --- UI Toggles ---
 function toggleGenres() { closeAll(); showGenres.value = !showGenres.value; }
 function toggleFilter() { closeAll(); showFilter.value = !showFilter.value; }
 function toggleSearch() { showMobileSearch.value = !showMobileSearch.value; }
 function toggleSettings() { closeAll(); showSettings.value = !showSettings.value; }
 function closeAll() { showGenres.value = false; showFilter.value = false; showSettings.value = false; showMobileSearch.value = false; }
-function goHome() { router.push("/"); }
+function goHome() { router.push({ name: "Home" }); }
 function openProfile() { closeAll(); router.push("/profile"); }
 
+// --- Auth ---
 function doLogout() {
   authLogout(); 
   user.value = null; 
-  console.log("Logout successful");
   router.push("/");
   showSettings.value = false;
 }
 
+// --- UI Preferences ---
 function toggleLang() {
   const newLang = locale.value === "UZ" ? "RU" : "UZ";
   locale.value = newLang; 
@@ -331,68 +374,20 @@ function toggleDarkMode() {
   localStorage.setItem("darkMode", JSON.stringify(darkMode.value));
 }
 
-function getFilterQueryParams() {
-  const params = [];
-  const f = filter.value;
-
-  if (f.search) {
-    params.push(`search=${encodeURIComponent(f.search)}`);
-  }
-  if (f.type) {
-    params.push(`type=${encodeURIComponent(f.type)}`);
-  }
-  if (f.status) {
-    params.push(`status=${encodeURIComponent(f.status)}`);
-  }
-  if (f.yearFrom && f.yearFrom >= 1980 && f.yearFrom <= 2025) {
-    params.push(`release_year_gte=${f.yearFrom}`);
-  }
-  if (f.yearTo && f.yearTo >= 1980 && f.yearTo <= 2025) {
-    params.push(`release_year_lte=${f.yearTo}`);
-  }
-  if (f.ratingFrom && f.ratingFrom >= 0 && f.ratingFrom <= 10) {
-    params.push(`rating_gte=${f.ratingFrom}`);
-  }
-  if (f.sort) {
-    params.push(`ordering=${encodeURIComponent(f.sort)}`);
-  }
-  
-  return params.join('&');
-}
-
-function applyFilterGenres() { 
-  // Use 'search' parameter for genres as per API examples (e.g., /api/animes/?search=romance)
-  const genresQuery = selectedGenres.value.length > 0 
-    ? `search=${selectedGenres.value.map(s => encodeURIComponent(s)).join('+')}`
-    : '';
-  emit('applyGenresQuery', genresQuery); 
-  console.log("Genres query string sent:", genresQuery); 
-  showGenres.value = false; 
-}
-
-function applyMainFilter() { 
-  const query = getFilterQueryParams();
-  emit('applyFilterQuery', query); 
-  console.log("Main Filter query string sent:", query); 
-  showFilter.value = false; 
-}
-
+// --- Load user data ---
 async function loadUserData() {
   const localUser = currentUser();
   if (localUser) {
     user.value = localUser; 
     const freshUser = await fetchMe();
-    if (freshUser) {
-      user.value = freshUser;
-    } else {
-      authLogout();
-      user.value = null;
-    }
+    if (freshUser) user.value = freshUser;
+    else { authLogout(); user.value = null; }
   } else {
     user.value = null;
   }
 }
 
+// --- Lifecycle ---
 onMounted(() => {
   if (darkMode.value) document.documentElement.classList.add("dark");
   window.addEventListener("click", closeAll);
@@ -400,27 +395,25 @@ onMounted(() => {
   fetchGenres();
 });
 
-router.afterEach(() => {
-  loadUserData();
-});
-
 onBeforeUnmount(() => {
   window.removeEventListener("click", closeAll);
 });
 
-watch(darkMode, (newVal) => {
-  const header = document.querySelector("header");
-  if (header) {
-    if (newVal) {
-      header.classList.remove("bg-white", "text-slate-900", "shadow-sm");
-      header.classList.add("bg-slate-900", "text-white", "shadow-lg");
-    } else {
-      header.classList.remove("bg-slate-900", "text-white", "shadow-lg");
-      header.classList.add("bg-white", "text-slate-900", "shadow-sm");
-    }
-  }
+// --- Watch router to sync search/filter ---
+watch(() => route.query, (q) => {
+  search.value = q.search || "";
+  filter.value = {
+    search: q.search || "",
+    type: q.type || "",
+    status: q.status || "",
+    yearFrom: q.release_year_gte || "",
+    yearTo: q.release_year_lte || "",
+    ratingFrom: q.rating_gte || "",
+    sort: q.ordering || "",
+  };
 });
 </script>
+
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
