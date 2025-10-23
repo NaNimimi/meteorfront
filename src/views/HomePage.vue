@@ -128,15 +128,42 @@
           <Card v-for="anime in animeList" :key="anime.id" :anime="anime" />
         </div>
 
-        <div v-if="animeNextPage" class="flex justify-center mt-8">
-          <button
-            @click="loadMoreAnimes"
-            :disabled="isLoadingAnimes"
-            class="px-6 py-3 rounded-full bg-amber-400 dark:bg-amber-500 text-gray-900 dark:text-gray-100 font-semibold hover:scale-105 transition-transform disabled:opacity-50"
-          >
-            {{ $t('loadMore') }}
-          </button>
-        </div>
+<!-- Pagination -->
+<div
+  v-if="totalPages > 1"
+  class="flex justify-center items-center gap-2 mt-8 flex-wrap"
+>
+  <button
+    class="px-3 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-amber-500 hover:text-white transition"
+    :disabled="animeCurrentPage === 1"
+    @click="changePage(animeCurrentPage - 1)"
+  >
+    ← Prev
+  </button>
+
+  <button
+    v-for="page in visiblePages"
+    :key="page"
+    @click="changePage(page)"
+    :class="[
+      'px-3 py-1 rounded-lg transition',
+      page === animeCurrentPage
+        ? 'bg-amber-500 text-white font-semibold'
+        : 'bg-gray-200 dark:bg-gray-700 hover:bg-amber-400 hover:text-white'
+    ]"
+  >
+    {{ page }}
+  </button>
+
+  <button
+    class="px-3 py-1 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-amber-500 hover:text-white transition"
+    :disabled="animeCurrentPage === totalPages"
+    @click="changePage(animeCurrentPage + 1)"
+  >
+    Next →
+  </button>
+</div>
+
       </section>
     </div>
   </div>
@@ -163,6 +190,7 @@ const animeCurrentPage = ref(1);
 const isLoadingAnimes = ref(false);
 const isLoadingSlider = ref(true);
 const isDarkMode = ref(JSON.parse(localStorage.getItem('darkMode')) || false);
+const totalPages = ref(1);
 
 // --- FILTERS / SEARCH ---
 const currentSearchQuery = ref(route.query.search || '');
@@ -209,7 +237,7 @@ function buildQueryString(page = 1) {
 // ------------------------------------------------
 async function fetchAnimes(append = false) {
   isLoadingAnimes.value = true;
-  const pageToLoad = append ? animeCurrentPage.value + 1 : 1;
+  const pageToLoad = append ? animeCurrentPage.value + 1 : animeCurrentPage.value;
   const url = `${API_BASE}/animes/?${buildQueryString(pageToLoad)}`;
 
   try {
@@ -217,15 +245,17 @@ async function fetchAnimes(append = false) {
     const data = await res.json();
     const animes = data.data || [];
 
-    if (append) {
-      animeList.value = [...animeList.value, ...animes];
-      animeCurrentPage.value = pageToLoad;
+    animeList.value = animes;
+    animeCurrentPage.value = pageToLoad;
+
+    // ✅ Use meta for pagination info
+    if (data.meta?.count) {
+      totalPages.value = Math.ceil(data.meta.count / 12);
     } else {
-      animeList.value = animes;
-      animeCurrentPage.value = 1;
+      totalPages.value = 1;
     }
 
-    animeNextPage.value = data.links?.next || null;
+    animeNextPage.value = data.meta?.next || null;
   } catch (err) {
     console.error('❌ Error loading animes:', err);
   } finally {
@@ -233,6 +263,14 @@ async function fetchAnimes(append = false) {
   }
 }
 
+
+// Функция смены страницы
+function changePage(page) {
+  if (page < 1 || page > totalPages.value) return;
+  animeCurrentPage.value = page;
+  fetchAnimes();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 async function fetchAnimesForSlider() {
   isLoadingSlider.value = true;
   try {
@@ -312,6 +350,19 @@ onMounted(() => {
 onUnmounted(() => {
   clearInterval(interval.value);
   window.removeEventListener('resize', () => (windowWidth.value = window.innerWidth));
+});
+
+
+const visiblePages = computed(() => {
+  const total = totalPages.value;
+  const current = animeCurrentPage.value;
+  const delta = 2;
+  const pages = [];
+
+  for (let i = Math.max(1, current - delta); i <= Math.min(total, current + delta); i++) {
+    pages.push(i);
+  }
+  return pages;
 });
 </script>
 
