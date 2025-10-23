@@ -1,19 +1,11 @@
 <template>
-  <!-- Global background -->
   <div
     class="min-h-screen w-full transition-colors duration-500 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
   >
     <div class="max-w-6xl mx-auto px-4">
-      <!-- Theme toggle button -->
-      <button
-        @click="toggleDarkMode"
-        class="fixed top-4 right-4 px-4 py-2 rounded-full bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold transition-colors shadow-md hover:scale-105"
-      >
-        {{ isDarkMode ? 'Light Mode' : 'Dark Mode' }}
-      </button>
-
       <!-- HERO SLIDER -->
       <section
+        v-if="slides.length"
         class="relative bg-cover bg-center rounded-b-3xl overflow-hidden mt-6 transition-all duration-700"
         :style="{
           backgroundImage: `url(${slides[currentIndex].hero})`,
@@ -26,16 +18,15 @@
         }"
       >
         <div
-          class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent"
+          class="absolute inset-0 bg-gradient-to-r from-black/70 via-black/40 to-transparent pointer-events-none"
         ></div>
 
         <div
           class="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-6 items-center px-4 sm:px-6 md:px-8 py-10 sm:py-14 text-white"
         >
-          <!-- Text -->
           <transition name="fade-up" mode="out-in">
             <div
-              :key="slides[currentIndex].title"
+              :key="slides[currentIndex].id"
               class="lg:col-span-2 space-y-3 sm:space-y-4 max-w-2xl"
             >
               <h1
@@ -48,29 +39,32 @@
               </p>
               <div class="flex flex-wrap gap-3 pt-2">
                 <button
-                  class="px-4 py-2 sm:px-5 sm:py-2.5 bg-yellow-500 hover:bg-yellow-400 rounded text-gray-900 font-semibold hover:scale-105 transition-transform"
+                  :disabled="!slides[currentIndex]?.id"
+                  @click="navigateToAnime(slides[currentIndex]?.id)"
+                  class="px-4 py-2 sm:px-5 sm:py-2.5 bg-yellow-500 hover:bg-yellow-400 rounded text-gray-900 font-semibold hover:scale-105 transition-transform disabled:opacity-50"
                 >
-                  Смотреть
+                  {{ $t('watch') }}
                 </button>
                 <button
-                  class="px-4 py-2 sm:px-5 sm:py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded text-white font-semibold transition-colors"
+                  :disabled="!slides[currentIndex]?.id"
+                  @click="navigateToAnimeDetails(slides[currentIndex]?.id)"
+                  class="px-4 py-2 sm:px-5 sm:py-2.5 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded text-white font-semibold transition-colors disabled:opacity-50"
                 >
-                  Подробнее
+                  {{ $t('details') }}
                 </button>
               </div>
             </div>
           </transition>
 
-          <!-- Mini photo -->
           <div class="hidden lg:block">
             <transition name="slide-mini" mode="out-in">
               <div
-                :key="slides[currentIndex].mini"
+                :key="slides[currentIndex].id"
                 class="relative rounded-xl shadow-lg w-56 xl:w-64 h-56 xl:h-64 overflow-hidden group bg-white/10 backdrop-blur-sm"
               >
                 <img
                   :src="slides[currentIndex].mini"
-                  alt="mini photo"
+                  :alt="slides[currentIndex].title"
                   class="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
                 <div
@@ -88,7 +82,6 @@
           </div>
         </div>
 
-        <!-- Dots -->
         <div
           class="absolute bottom-3 sm:bottom-5 left-0 right-0 flex justify-center space-x-2 z-10"
         >
@@ -106,21 +99,73 @@
         </div>
       </section>
 
-      <!-- GRID -->
+      <section
+        v-else-if="isLoadingSlider"
+        class="flex justify-center items-center h-64 mt-6"
+      >
+        <div
+          class="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-400"
+        ></div>
+        <p class="ml-4 text-lg">{{ $t('loading') }}...</p>
+      </section>
+
+      <section
+        v-else-if="isErrorSlider"
+        class="flex justify-center items-center h-64 mt-6 p-4 bg-red-100 dark:bg-red-900/50 rounded-lg"
+      >
+        <p
+          class="text-red-600 dark:text-red-400 font-semibold"
+        >{{ $t('errorLoadingSlides') }}</p>
+      </section>
+
+      <section
+        v-else
+        class="flex justify-center items-center h-64 mt-6 p-4 bg-gray-200 dark:bg-gray-800 rounded-lg"
+      >
+        <p
+          class="text-gray-600 dark:text-gray-400 font-semibold"
+        >{{ $t('noContentAvailable') }}</p>
+      </section>
+
+      <!-- MAIN ANIME LIST -->
       <section
         class="mt-10 pb-10 bg-gray-100 dark:bg-gray-800 rounded-3xl transition-colors duration-500"
       >
-        <div
-          class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 p-4 sm:p-6"
-        >
-          <Card v-for="i in 8" :key="i" :index="i" />
+        <h2 class="text-2xl font-bold pt-6 px-6 mb-4">
+          {{
+            currentSearchQuery || currentGenres.length || isFiltered
+              ? $t('searchResults')
+              : $t('latestReleases')
+          }}
+        </h2>
+
+        <div v-if="isLoadingAnimes" class="flex justify-center p-10">
+          <div
+            class="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-400"
+          ></div>
         </div>
 
-        <div class="flex justify-center mt-8">
+        <div
+          v-else-if="animeList.length === 0"
+          class="text-center p-10 text-xl font-medium"
+        >
+          {{ $t('noAnimesFound') }}
+        </div>
+
+        <div
+          v-else
+          class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6 p-4 sm:p-6"
+        >
+          <Card v-for="anime in animeList" :key="anime.id" :anime="anime" />
+        </div>
+
+        <div v-if="animeNextPage" class="flex justify-center mt-8">
           <button
-            class="px-6 py-3 rounded-full bg-amber-400 dark:bg-amber-500 text-gray-900 dark:text-gray-100 font-semibold hover:scale-105 transition-transform"
+            @click="loadMoreAnimes"
+            :disabled="isLoadingAnimes"
+            class="px-6 py-3 rounded-full bg-amber-400 dark:bg-amber-500 text-gray-900 dark:text-gray-100 font-semibold hover:scale-105 transition-transform disabled:opacity-50"
           >
-            Load more
+            {{ $t('loadMore') }}
           </button>
         </div>
       </section>
@@ -129,45 +174,140 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue';
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
+import { useRouter } from 'vue-router';
+import { useI18n } from 'vue-i18n';
 import Card from '../components/Card.vue';
 
+const { t } = useI18n();
+const router = useRouter();
+
+const API_BASE = 'http://api.meteordub.uz/api';
+
+// --- SLIDER ---
 const currentIndex = ref(0);
+const slides = ref([]);
+const isLoadingSlider = ref(true);
+const isErrorSlider = ref(false);
+
+// --- ANIME LIST ---
+const animeList = ref([]);
+const isLoadingAnimes = ref(false);
+const animeNextPage = ref(null);
+const animeCurrentPage = ref(1);
+
+// --- FILTERS ---
+const currentSearchQuery = ref('');
+const currentGenres = ref([]);
+const currentMainFilter = ref({});
+const isFiltered = computed(() =>
+  Object.values(currentMainFilter.value).some((val) => val)
+);
+
+// --- UI ---
 const windowWidth = ref(window.innerWidth);
 const interval = ref(null);
 const isDarkMode = ref(JSON.parse(localStorage.getItem('darkMode')) || false);
 
-const slides = ref([
-  {
-    hero: '/hero.jpg',
-    mini: '/mini.jpg',
-    title: 'Аниме 1 — Приключения!',
-    desc: 'Описание первого слайда. Интересный сюжет и красочный мир.',
-    label: 'Новинка',
-    subtitle: 'Лучший релиз месяца',
-  },
-  {
-    hero: '/hero2.jpg',
-    mini: '/mini3.jpg',
-    title: 'Аниме 2 — Магия и битвы',
-    desc: 'Эпическая история о героях и их приключениях.',
-    label: 'Популярное',
-    subtitle: 'Смотрите прямо сейчас',
-  },
-  {
-    hero: '/hero3.jpg',
-    mini: '/mini2.jpeg',
-    title: 'Аниме 3 — Любовь и драма',
-    desc: 'Трогательная история с красивой графикой и атмосферой.',
-    label: 'Рекомендация',
-    subtitle: 'Не пропустите новый сезон',
-  },
-]);
+// ------------------------------------------------
+// FETCH FUNCTIONS
+// ------------------------------------------------
+
+function buildQueryString(page = 1) {
+  const params = new URLSearchParams();
+  const finalSearch = currentSearchQuery.value || currentMainFilter.value.search;
+  if (finalSearch) params.append('search', finalSearch);
+  if (currentGenres.value.length)
+    params.append('genres', currentGenres.value.join(','));
+  const filter = currentMainFilter.value;
+  if (filter.type) params.append('type', filter.type);
+  if (filter.status) params.append('status', filter.status);
+  if (filter.sort) params.append('ordering', filter.sort);
+  if (filter.yearFrom) params.append('year_after', filter.yearFrom);
+  if (filter.yearTo) params.append('year_before', filter.yearTo);
+  if (filter.ratingFrom) params.append('rating_min', filter.ratingFrom);
+  params.append('page', page);
+  return params.toString();
+}
+
+async function fetchAnimes(append = false) {
+  isLoadingAnimes.value = true;
+  const pageToLoad = append ? animeCurrentPage.value + 1 : 1;
+  const queryString = buildQueryString(pageToLoad);
+  const url = `${API_BASE}/animes/?${queryString}`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Ошибка HTTP: ${res.status}`);
+    const data = await res.json();
+    const newAnimes = data.data || [];
+
+    if (append) {
+      animeList.value = [...animeList.value, ...newAnimes];
+      animeCurrentPage.value = pageToLoad;
+    } else {
+      animeList.value = newAnimes;
+      animeCurrentPage.value = 1;
+    }
+    animeNextPage.value = data.links?.next || null;
+  } catch (error) {
+    console.error('Ошибка загрузки аниме:', error);
+    if (!append) animeList.value = [];
+  } finally {
+    isLoadingAnimes.value = false;
+  }
+}
+
+async function fetchAnimesForSlider() {
+  isLoadingSlider.value = true;
+  isErrorSlider.value = false;
+
+  try {
+    const url = `${API_BASE}/animes/?limit=20&ordering=-rating`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
+    const data = await res.json();
+    const allAnimes = data.data || [];
+
+    if (allAnimes.length === 0) return;
+
+    const shuffled = allAnimes.sort(() => 0.5 - Math.random());
+    const selectedSlides = shuffled.slice(0, 3);
+
+    slides.value = selectedSlides.map((anime) => ({
+      id: anime.id,
+      hero: anime.banner_url || '/placeholder-hero.jpg',
+      mini: anime.poster_url || '/placeholder-mini.jpg',
+      title: anime.title_ru || anime.title_uz || 'No title',
+      desc:
+        anime.description?.substring(0, 200) + '...' || t('noDescription'),
+      label: anime.status === 'ongoing' ? t('ongoing') : t('released'),
+      subtitle: `${anime.year || '—'}, ${anime.type || '—'}`,
+      slug: anime.slug,
+    }));
+
+    currentIndex.value = 0;
+    if (slides.value.length > 1) startSlider();
+  } catch (error) {
+    console.error('Ошибка загрузки слайдов:', error);
+    isErrorSlider.value = true;
+    slides.value = [];
+  } finally {
+    isLoadingSlider.value = false;
+  }
+}
+
+// ------------------------------------------------
+// SLIDER LOGIC
+// ------------------------------------------------
 
 function startSlider() {
-  interval.value = setInterval(() => {
-    currentIndex.value = (currentIndex.value + 1) % slides.value.length;
-  }, 5000);
+  if (interval.value) clearInterval(interval.value);
+  if (slides.value.length > 1) {
+    interval.value = setInterval(() => {
+      currentIndex.value = (currentIndex.value + 1) % slides.value.length;
+    }, 5000);
+  }
 }
 
 function setSlide(i) {
@@ -176,29 +316,42 @@ function setSlide(i) {
   startSlider();
 }
 
+// ------------------------------------------------
+// NAVIGATION
+// ------------------------------------------------
+
+function navigateToAnime(id) {
+  if (!id) return console.warn('No id found for current slide.');
+  router.push(`/anime/${id}`);
+}
+
+function navigateToAnimeDetails(id) {
+  if (!id) return console.warn('No id found for details.');
+  router.push(`/anime/${id}`); // Change later if needed (e.g. `/anime/${slug}/details`)
+}
+
+// ------------------------------------------------
+// UI EVENTS
+// ------------------------------------------------
+
 function handleResize() {
   windowWidth.value = window.innerWidth;
 }
 
-function toggleDarkMode() {
-  isDarkMode.value = !isDarkMode.value;
-  localStorage.setItem('darkMode', JSON.stringify(isDarkMode.value));
-  document.documentElement.classList.toggle('dark', isDarkMode.value);
+function applyTheme(isDark) {
+  document.documentElement.classList.toggle('dark', isDark);
+  localStorage.setItem('darkMode', JSON.stringify(isDark));
 }
 
-onMounted(() => {
-  // Initialize dark mode state
-  const savedMode = JSON.parse(localStorage.getItem('darkMode'));
-  if (savedMode) {
-    isDarkMode.value = true;
-    document.documentElement.classList.add('dark');
-  } else {
-    isDarkMode.value = false;
-    document.documentElement.classList.remove('dark');
-  }
+// ------------------------------------------------
+// LIFECYCLE
+// ------------------------------------------------
 
-  startSlider();
+onMounted(() => {
+  applyTheme(isDarkMode.value);
   window.addEventListener('resize', handleResize);
+  fetchAnimesForSlider();
+  fetchAnimes();
 });
 
 onUnmounted(() => {
@@ -206,10 +359,8 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleResize);
 });
 
-// Sync dark mode with navbar
 watch(isDarkMode, (newVal) => {
-  document.documentElement.classList.toggle('dark', newVal);
-  localStorage.setItem('darkMode', JSON.stringify(newVal));
+  applyTheme(newVal);
 });
 </script>
 
@@ -240,16 +391,14 @@ watch(isDarkMode, (newVal) => {
   transform: translateX(-50px);
 }
 
-/* Background smooth transition */
 html,
 body {
   min-height: 100vh;
-  background-color: #f9fafb; /* Light */
+  background-color: #f9fafb;
   transition: background-color 0.5s ease;
 }
-
 html.dark,
 body.dark {
-  background-color: #0f172a; /* Dark */
+  background-color: #0f172a;
 }
 </style>

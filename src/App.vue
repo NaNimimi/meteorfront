@@ -18,7 +18,6 @@ import { computed } from 'vue'
 import NavBar from './components/NavBar.vue'
 import AppFooter from './components/AppFooter.vue'
 
-
 const route = useRoute()
 
 // скрываем Navbar на anime, login, signup

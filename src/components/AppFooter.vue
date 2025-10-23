@@ -6,13 +6,12 @@
     <div
       class="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left text-sm"
     >
-      <!-- Левая колонка -->
       <div>
         <h3
           class="font-bold text-lg mb-3 transition-colors"
           :class="darkMode ? 'text-white' : 'text-slate-900'"
         >
-          Ijtimoiy Tarmoqlar
+          {{ $t('footer.social') }}
         </h3>
         <div class="flex justify-center md:justify-start space-x-4 mb-4">
           <a href="#" class="hover:opacity-80 transition">
@@ -29,17 +28,16 @@
           class="text-xs transition-colors"
           :class="darkMode ? 'text-gray-400' : 'text-gray-600'"
         >
-          Ushbu Saytdagi Barcha Videolar Faqat Ma'lumot Uchun Taqdim Etiladi.
+          {{ $t('footer.disclaimer') }}
         </p>
       </div>
 
-      <!-- Центр -->
       <div>
         <h3
           class="font-bold text-lg mb-3 underline underline-offset-2 transition-colors"
           :class="darkMode ? 'text-white' : 'text-slate-900'"
         >
-          SAYT HAQIDAGI MA'LUMOT
+          {{ $t('footer.siteInfo').toUpperCase() }}
         </h3>
         <ul class="space-y-1">
           <li>
@@ -48,7 +46,7 @@
               class="hover:underline transition-colors"
               :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-slate-900'"
             >
-              Sayt Haqida
+              {{ $t('footer.about') }}
             </a>
           </li>
           <li>
@@ -57,7 +55,7 @@
               class="hover:underline transition-colors"
               :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-slate-900'"
             >
-              Пользовательское Соглашение
+              {{ $t('footer.agreement') }}
             </a>
           </li>
           <li>
@@ -66,7 +64,7 @@
               class="hover:underline transition-colors"
               :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-slate-900'"
             >
-              Политика
+              {{ $t('footer.policy') }}
             </a>
           </li>
           <li>
@@ -75,19 +73,18 @@
               class="hover:underline transition-colors"
               :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-slate-900'"
             >
-              Конфиденциальность
+              {{ $t('footer.confidentiality') }}
             </a>
           </li>
         </ul>
       </div>
 
-      <!-- Правая колонка -->
       <div>
         <h3
           class="font-bold text-lg mb-3 underline underline-offset-2 transition-colors"
           :class="darkMode ? 'text-white' : 'text-slate-900'"
         >
-          TEXNIK YORDAM VA YORDAM
+          {{ $t('footer.support').toUpperCase() }}
         </h3>
         <ul class="space-y-1">
           <li>
@@ -96,7 +93,7 @@
               class="hover:underline transition-colors"
               :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-slate-900'"
             >
-              Yordam bilan chat
+              {{ $t('footer.supportChat') }}
             </a>
           </li>
           <li>
@@ -114,7 +111,7 @@
               class="hover:underline transition-colors"
               :class="darkMode ? 'text-gray-300 hover:text-white' : 'text-gray-700 hover:text-slate-900'"
             >
-              Rivojlanish kanali
+              {{ $t('footer.devChannel') }}
             </a>
           </li>
         </ul>
@@ -125,13 +122,17 @@
       class="text-center text-xs mt-8 transition-colors"
       :class="darkMode ? 'text-gray-500' : 'text-gray-500'"
     >
-      © 2025 Barcha huquqlar himoyalangan.
+      © {{ new Date().getFullYear() }} {{ $t('footer.copyright') }}
     </div>
   </footer>
 </template>
 
 <script setup>
 import { ref, onMounted } from "vue";
+import { useI18n } from 'vue-i18n'; // 👈 Импортируем useI18n
+
+// Инициализируем I18n для доступа к $t
+const { t } = useI18n(); 
 
 const darkMode = ref(JSON.parse(localStorage.getItem("darkMode")) || false);
 
